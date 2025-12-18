@@ -43,7 +43,7 @@ func CreateManagerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "manager",
 		Short: "Start the controller manager",
-		Long:  "Start the Kubernetes controller manager for the email provider resend",
+		Long:  "Start the Kubernetes controller manager for the email provider loops",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			setupLog := ctrl.Log.WithName("setup")
 
@@ -215,7 +215,7 @@ func CreateManagerCommand() *cobra.Command {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 
 	// Leader election configuration flags
-	cmd.Flags().StringVar(&leaderElectionID, "leader-election-id", "1adf6d2b.resend.notification.miloapis.com",
+	cmd.Flags().StringVar(&leaderElectionID, "leader-election-id", "1adf6d2b.loops.notification.miloapis.com",
 		"The name of the resource that leader election will use for holding the leader lock.")
 	cmd.Flags().StringVar(&leaderElectionNamespace, "leader-election-namespace", "",
 		"Namespace to use for leader election. If empty, the controller will discover the namespace it is running in.")
