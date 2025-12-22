@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"go.miloapis.com/email-provider-loops/internal/util"
 	loops "go.miloapis.com/email-provider-loops/pkg/loops"
 	notificationmiloapiscomv1alpha1 "go.miloapis.com/milo/pkg/apis/notification/v1alpha1"
 
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +35,8 @@ const (
 	LoopsContactUpdatedReason = "ContactUpdated"
 	// ContactNotUpdatedReason is a reason that is set when the Loops contact is not updated
 	LoopsContactNotUpdatedReason = "ContactNotUpdated"
+	// LoopsContactNotFinalizedReason is a reason that is set when the Loops contact is not finalized
+	LoopsContactNotFinalizedReason = "ContactNotFinalized"
 )
 
 const (
@@ -72,11 +74,42 @@ func (f *loopsContactFinalizer) Finalize(ctx context.Context, obj client.Object)
 		return finalizer.Result{}, fmt.Errorf("object is not a Contact")
 	}
 
+	var finalizerError error
+
 	// Delete Loops contact
 	err := f.DeleteContact(ctx, contact)
 	if err != nil {
 		log.Error(err, "Failed to delete Loops contact")
-		return finalizer.Result{}, fmt.Errorf("failed to delete Loops contact: %w", err)
+		finalizerError = err
+	}
+
+	if finalizerError != nil {
+		original := contact.DeepCopy()
+		oldStatus := contact.Status.DeepCopy()
+
+		meta.SetStatusCondition(&contact.Status.Conditions, metav1.Condition{
+			Type:               LoopsContactReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             LoopsContactNotFinalizedReason,
+			Message:            fmt.Sprintf("Failed to remove Loops contact: %s", finalizerError.Error()),
+			LastTransitionTime: metav1.Now(),
+			ObservedGeneration: contact.GetGeneration(),
+		})
+
+		if err := util.PatchStatusIfChanged(ctx, util.StatusPatchParams{
+			Client:     f.Client,
+			Logger:     log,
+			Object:     contact,
+			Original:   original,
+			OldStatus:  oldStatus,
+			NewStatus:  &contact.Status,
+			FieldOwner: "loopscontact-controller",
+		}); err != nil {
+			log.Error(err, "Failed to patch contact status in finalizer")
+			finalizerError = err
+		}
+
+		return finalizer.Result{}, finalizerError
 	}
 
 	return finalizer.Result{}, nil
@@ -201,13 +234,16 @@ func (r *LoopsContactController) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Update contact status if it changed
-	if !equality.Semantic.DeepEqual(oldStatus, &contact.Status) {
-		if err := r.Client.Status().Patch(ctx, contact, client.MergeFrom(original), client.FieldOwner("loopscontact-controller")); err != nil {
-			log.Error(err, "Failed to patch contact status")
-			return ctrl.Result{}, fmt.Errorf("failed to patch contact status: %w", err)
-		}
-	} else {
-		log.Info("Contact status unchanged, skipping update")
+	if err := util.PatchStatusIfChanged(ctx, util.StatusPatchParams{
+		Client:     r.Client,
+		Logger:     log,
+		Object:     contact,
+		Original:   original,
+		OldStatus:  oldStatus,
+		NewStatus:  &contact.Status,
+		FieldOwner: "loopscontact-controller",
+	}); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	if reconcileError != nil {
