@@ -122,6 +122,7 @@ func (r *LoopsContactController) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
+	var reconcileError error
 	oldStatus := contact.Status.DeepCopy()
 	original := contact.DeepCopy()
 	readyCond := meta.FindStatusCondition(contact.Status.Conditions, LoopsContactReadyCondition)
@@ -132,12 +133,8 @@ func (r *LoopsContactController) Reconcile(ctx context.Context, req ctrl.Request
 		log.Info("LoopsContact creation")
 
 		err := r.upsertContact(ctx, contact)
-		if err != nil && !loops.IsBadRequest(err) {
-			log.Error(err, "Failed to create Loops contact")
-			return ctrl.Result{}, fmt.Errorf("failed to create Loops contact: %w", err)
-		}
-
-		if err != nil && loops.IsBadRequest(err) {
+		if err != nil {
+			reconcileError = err
 			log.Info("Bad Request when creating Loops contact")
 			meta.SetStatusCondition(&contact.Status.Conditions, metav1.Condition{
 				Type:               LoopsContactReadyCondition,
@@ -168,25 +165,21 @@ func (r *LoopsContactController) Reconcile(ctx context.Context, req ctrl.Request
 		}
 
 	// Update – generation changed since we last processed the object
-	case readyCond.ObservedGeneration != contact.GetGeneration():
+	case readyCond.ObservedGeneration != contact.GetGeneration() || readyCond.Reason == LoopsContactNotUpdatedReason:
 		log.Info("Contact updated")
 
 		err := r.upsertContact(ctx, contact)
 		if err != nil {
-			if loops.IsBadRequest(err) {
-				log.Info("Failed to update contact on email provider", "error", err.Error())
-				meta.SetStatusCondition(&contact.Status.Conditions, metav1.Condition{
-					Type:               LoopsContactReadyCondition,
-					Status:             metav1.ConditionFalse,
-					Reason:             LoopsContactNotUpdatedReason,
-					Message:            fmt.Sprintf("Loops contact not updated on email provider: %s", err.Error()),
-					LastTransitionTime: metav1.Now(),
-					ObservedGeneration: contact.GetGeneration(),
-				})
-			} else {
-				log.Error(err, "Failed to update Loops contact")
-				return ctrl.Result{}, fmt.Errorf("failed to update Loops contact: %w", err)
-			}
+			reconcileError = err
+			log.Error(err, "Failed to update contact on email provider")
+			meta.SetStatusCondition(&contact.Status.Conditions, metav1.Condition{
+				Type:               LoopsContactReadyCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             LoopsContactNotUpdatedReason,
+				Message:            fmt.Sprintf("Loops contact not updated on email provider: %s", err.Error()),
+				LastTransitionTime: metav1.Now(),
+				ObservedGeneration: contact.GetGeneration(),
+			})
 		}
 
 		if err == nil {
@@ -215,6 +208,10 @@ func (r *LoopsContactController) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	} else {
 		log.Info("Contact status unchanged, skipping update")
+	}
+
+	if reconcileError != nil {
+		return ctrl.Result{}, reconcileError
 	}
 
 	if errorAddingToNewsLetter {
