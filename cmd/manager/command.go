@@ -204,6 +204,14 @@ func CreateManagerCommand() *cobra.Command {
 				return err
 			}
 
+			if err = (&controller.LoopsContactGroupMembershipController{
+				Client: mgr.GetClient(),
+				Loops:  loopsClient,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "LoopsContactGroupMembership")
+				return err
+			}
+
 			setupLog.Info("starting manager")
 			if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 				setupLog.Error(err, "problem running manager")
