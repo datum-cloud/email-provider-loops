@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: email-provider-loops
+    app.kubernetes.io/managed-by: kustomize
+  name: system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: email-provider-loops
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: email-provider-loops
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+        app.kubernetes.io/name: email-provider-loops
+    spec:
+      securityContext:
+        # Projects are configured by default to adhere to the "restricted" Pod Security Standards.
+        # This ensures that deployments meet the highest security requirements for Kubernetes.
+        # For more details, see: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - args:
+          - manager
+          # Manager
+          - --metrics-bind-address=$(METRICS_BIND_ADDRESS)
+          - --leader-elect=$(ENABLE_LEADER_ELECTION)
+          - --health-probe-bind-address=$(HEALTH_PROBE_BIND_ADDRESS)
+          - --enable-http2=$(ENABLE_HTTP2)
+          # Webhook
+          - --webhook-cert-path=$(WEBHOOK_CERT_PATH)
+          - --webhook-cert-name=$(WEBHOOK_CERT_NAME)
+          - --webhook-cert-key=$(WEBHOOK_CERT_KEY)
+          # Metrics
+          - --metrics-secure=$(METRICS_SECURE)
+          - --metrics-cert-path=$(METRICS_CERT_PATH)
+          - --metrics-cert-name=$(METRICS_CERT_NAME)
+          - --metrics-cert-key=$(METRICS_CERT_KEY)
+          # Leader election
+          - --leader-election-namespace=$(LEADER_ELECTION_NAMESPACE)
+          - --leader-election-id=$(LEADER_ELECTION_ID)
+          - --leader-election-lease-duration=$(LEADER_ELECTION_LEASE_DURATION)
+          - --leader-election-renew-deadline=$(LEADER_ELECTION_RENEW_DEADLINE)
+          - --leader-election-retry-period=$(LEADER_ELECTION_RETRY_PERIOD)
+        env:
+          # Manager
+          - name: METRICS_BIND_ADDRESS
+            value: ":8443"
+          - name: ENABLE_LEADER_ELECTION
+            value: "true"
+          - name: HEALTH_PROBE_BIND_ADDRESS
+            value: ":8081"
+          - name: ENABLE_HTTP2
+            value: "false"
+          # Webhook
+          - name: WEBHOOK_CERT_PATH
+            value: certs
+          - name: WEBHOOK_CERT_NAME
+            value: tls.crt
+          - name: WEBHOOK_CERT_KEY
+            value: tls.key
+          # Metrics
+          - name: METRICS_SECURE
+            value: "true"
+          - name: METRICS_CERT_PATH
+            value: certs
+          - name: METRICS_CERT_NAME
+            value: tls.crt
+          - name: METRICS_CERT_KEY
+            value: tls.key
+          # Leader election
+          - name: LEADER_ELECTION_NAMESPACE
+            value: ""
+          - name: LEADER_ELECTION_ID
+            value: 1adf6d2b.loops.notification.miloapis.com
+          - name: LEADER_ELECTION_LEASE_DURATION
+            value: 15s
+          - name: LEADER_ELECTION_RENEW_DEADLINE
+            value: 10s
+          - name: LEADER_ELECTION_RETRY_PERIOD
+            value: 2s
+        envFrom:
+          - secretRef:
+              name: loops-keys # MUST contain the key LOOPS_API_KEY
+
+        image: ghcr.io/datum-cloud/email-provider-loops:latest
+        name: controller-manager
+        
+        ports:
+        - containerPort: 8081
+          name: health
+          protocol: TCP
+        - containerPort: 8443
+          name: metrics
+          protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        # TODO(user): Configure the resources accordingly based on the project requirements.
+        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 200m
+            memory: 128Mi
+        volumeMounts: []
+      volumes: []
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10
