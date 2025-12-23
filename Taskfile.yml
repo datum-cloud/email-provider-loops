@@ -1,4 +1,5 @@
 version: '3'
+dotenv: [".env"]
 
 vars:
   CERTS_DIR: "certs"
@@ -17,4 +18,8 @@ tasks:
       - |
           go run cmd/main.go manager \
           --newsletter-contact-group-name newsletter \
-          --newsletter-contact-group-namespace default
+          --newsletter-contact-group-namespace default \
+          --health-probe-bind-address :8082
+    
+    env:
+      LOOPS_API_KEY: "{{.LOOPS_API_KEY}}"
