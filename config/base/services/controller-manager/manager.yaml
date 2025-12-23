@@ -59,6 +59,10 @@ spec:
           - --leader-election-lease-duration=$(LEADER_ELECTION_LEASE_DURATION)
           - --leader-election-renew-deadline=$(LEADER_ELECTION_RENEW_DEADLINE)
           - --leader-election-retry-period=$(LEADER_ELECTION_RETRY_PERIOD)
+          # Loops 
+          - --newsletter-contact-group-name=$(NEWSLETTER_CONTACT_GROUP_NAME)
+          - --newsletter-contact-group-namespace=$(NEWSLETTER_CONTACT_GROUP_NAMESPACE)
+
         env:
           # Manager
           - name: METRICS_BIND_ADDRESS
@@ -96,6 +100,11 @@ spec:
             value: 10s
           - name: LEADER_ELECTION_RETRY_PERIOD
             value: 2s
+          # Loops 
+          - name: NEWSLETTER_CONTACT_GROUP_NAME
+            value: ""
+          - name: NEWSLETTER_CONTACT_GROUP_NAMESPACE
+            value: ""
         envFrom:
           - secretRef:
               name: loops-keys # MUST contain the key LOOPS_API_KEY
