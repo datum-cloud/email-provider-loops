@@ -1,0 +1,25 @@
+version: '3'
+dotenv: [".env"]
+
+vars:
+  CERTS_DIR: "certs"
+  ZITADEL_PRIVATE_KEY: "certs/331462024888320002.json"
+  ZITADEL_DOMAIN: "http://localhost:8080"
+  
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  run-manager:
+    desc: Run the email-provider-loops manager
+    cmds:
+      - |
+          go run cmd/main.go manager \
+          --newsletter-contact-group-name newsletter \
+          --newsletter-contact-group-namespace default \
+          --health-probe-bind-address :8082
+    
+    env:
+      LOOPS_API_KEY: "{{.LOOPS_API_KEY}}"

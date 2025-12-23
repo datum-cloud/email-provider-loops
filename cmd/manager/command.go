@@ -4,12 +4,15 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
+	controller "go.miloapis.com/email-provider-loops/internal"
+	loops "go.miloapis.com/email-provider-loops/pkg/loops"
 	iammiloapiscomv1alpha1 "go.miloapis.com/milo/pkg/apis/iam/v1alpha1"
 	notificationmiloapiscomv1alpha1 "go.miloapis.com/milo/pkg/apis/notification/v1alpha1"
 
@@ -38,6 +41,7 @@ func CreateManagerCommand() *cobra.Command {
 		enableHTTP2                                                           bool
 		leaderElectionID, leaderElectionNamespace, leaderElectionResourceLock string
 		leaseDuration, renewDeadline, retryPeriod                             time.Duration
+		newsLetterContactGroupName, newsLetterContactGroupNamespace           string
 	)
 
 	cmd := &cobra.Command{
@@ -180,6 +184,34 @@ func CreateManagerCommand() *cobra.Command {
 				return fmt.Errorf("unable to set up ready check: %w", err)
 			}
 
+			// Setup Loops client
+			loopsAPIKey := os.Getenv("LOOPS_API_KEY")
+			if loopsAPIKey == "" {
+				return fmt.Errorf("LOOPS_API_KEY environment variable is required")
+			}
+			loopsClient, err := loops.NewSDK(loopsAPIKey)
+			if err != nil {
+				return fmt.Errorf("failed to create Loops client: %w", err)
+			}
+
+			if err = (&controller.LoopsContactController{
+				Client:                          mgr.GetClient(),
+				Loops:                           loopsClient,
+				NewsLetterContactGroupName:      newsLetterContactGroupName,
+				NewsLetterContactGroupNamespace: newsLetterContactGroupNamespace,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "LoopsContact")
+				return err
+			}
+
+			if err = (&controller.LoopsContactGroupMembershipController{
+				Client: mgr.GetClient(),
+				Loops:  loopsClient,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "LoopsContactGroupMembership")
+				return err
+			}
+
 			setupLog.Info("starting manager")
 			if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 				setupLog.Error(err, "problem running manager")
@@ -229,6 +261,12 @@ func CreateManagerCommand() *cobra.Command {
 		"The interval between attempts by the acting master to renew a leadership slot before it stops leading.")
 	cmd.Flags().DurationVar(&retryPeriod, "leader-election-retry-period", 2*time.Second,
 		"The duration the clients should wait between attempting acquisition and renewal of a leadership.")
+
+	// NewsLetter Contact Group configuration flags
+	cmd.Flags().StringVar(&newsLetterContactGroupName,
+		"newsletter-contact-group-name", "newsletter", "The name of the contact group for the newsletter.")
+	cmd.Flags().StringVar(&newsLetterContactGroupNamespace,
+		"newsletter-contact-group-namespace", "default", "The namespace of the contact group for the newsletter.")
 
 	opts := zap.Options{
 		Development: true,
