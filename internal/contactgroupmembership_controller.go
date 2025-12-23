@@ -148,19 +148,29 @@ func (r *LoopsContactGroupMembershipController) Reconcile(ctx context.Context, r
 		return ctrl.Result{}, nil
 	}
 
+	var reconcileError error
+
 	// Get Referenced resources
 	contact, contactGroup, err := getReferencedResources(ctx, r.Client, cgm)
 	if err != nil {
 		log.Error(err, "Failed to get referenced resources")
-		return ctrl.Result{}, fmt.Errorf("failed to get referenced resources: %w", err)
+		reconcileError = fmt.Errorf("failed to get referenced resources: %w", err)
+		meta.SetStatusCondition(&cgm.Status.Conditions, metav1.Condition{
+			Type:               LoopsContactGroupMembershipReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             LoopsContactGroupMembershipNotCreatedReason,
+			Message:            fmt.Sprintf("Failed to get referenced resources: %s", err.Error()),
+			LastTransitionTime: metav1.Now(),
+			ObservedGeneration: cgm.GetGeneration(),
+		})
+
 	}
 
-	var reconcileError error
 	oldStatus := cgm.Status.DeepCopy()
 	original := cgm.DeepCopy()
 	readyCond := meta.FindStatusCondition(cgm.Status.Conditions, LoopsContactGroupMembershipReadyCondition)
 
-	if readyCond == nil || readyCond.Reason == LoopsContactGroupMembershipNotCreatedReason {
+	if (readyCond == nil || readyCond.Reason == LoopsContactGroupMembershipNotCreatedReason) && reconcileError == nil {
 		log.Info("LoopsContact creation")
 
 		err = r.addContactToMailingList(ctx, contact, contactGroup)
