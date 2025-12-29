@@ -10,3 +10,4 @@ namespace: email-provider-loops-system
 resources:
   - rbac
   - services/controller-manager
+  - services/webhook
