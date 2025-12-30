@@ -245,8 +245,6 @@ func (wh *Webhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Log the raw body for debugging
 	log.Info("Received webhook body", "body", string(body))
 
-	fmt.Println("Signing secret loaded", wh.signingSecret)
-
 	// Verify webhook signature
 	if err := verifyWebhook(r, body, wh.signingSecret); err != nil {
 		var verifyErr *WebhookVerificationError
