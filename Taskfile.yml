@@ -12,6 +12,12 @@ tasks:
     cmds:
       - task --list
 
+  # Generate all certificates for webhook server
+  generate-webhook-certs:
+    desc: Generate all certificates for webhook server
+    cmds:
+      - mkdir -p "{{.CERTS_DIR}}" && openssl req -x509 -nodes -newkey rsa:4096 -keyout "{{.CERTS_DIR}}/server.key" -out "{{.CERTS_DIR}}/server.crt" -days 1024 -subj "/CN=webhook.zitadel.svc" -sha256
+
   run-manager:
     desc: Run the email-provider-loops manager
     cmds:
@@ -23,3 +29,17 @@ tasks:
     
     env:
       LOOPS_API_KEY: "{{.LOOPS_API_KEY}}"
+      LOOPS_SIGNING_SECRET: "{{.LOOPS_SIGNING_SECRET}}"
+
+  run-webhook:
+    desc: Run the webhook server locally
+    deps:
+      - generate-webhook-certs
+    cmds:
+      - |
+        go run ./cmd webhook \
+          --webhook-port 8443 \
+          --cert-dir "{{.CERTS_DIR}}" \
+          --cert-file "server.crt" \
+          --key-file "server.key" \
+          --metrics-bind-address :8082 

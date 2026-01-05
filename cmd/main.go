@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	manager "go.miloapis.com/email-provider-loops/cmd/manager"
 	version "go.miloapis.com/email-provider-loops/cmd/version"
+	"go.miloapis.com/email-provider-loops/cmd/webhook"
 )
 
 func main() {
@@ -18,6 +19,7 @@ func main() {
 
 	rootCmd.AddCommand(manager.CreateManagerCommand())
 	rootCmd.AddCommand(version.NewVersionCommand())
+	rootCmd.AddCommand(webhook.CreateWebhookCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
