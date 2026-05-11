@@ -100,7 +100,7 @@ spec:
           - secretRef:
               name: loops-keys # MUST contain the key LOOPS_API_KEY
 
-        image: ghcr.io/datum-cloud/email-provider-loops:latest
+        image: ghcr.io/milo-os/loops-provider:latest
         name: controller-manager
         
         ports:
