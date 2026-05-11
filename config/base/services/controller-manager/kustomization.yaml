@@ -4,5 +4,5 @@ resources:
 - manager.yaml
 - metrics-service.yaml
 images:
-- name: ghcr.io/datum-cloud/email-provider-loops
+- name: ghcr.io/milo-os/loops-provider
   newTag: latest
