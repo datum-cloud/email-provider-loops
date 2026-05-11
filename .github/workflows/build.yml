@@ -31,6 +31,7 @@ jobs:
       packages: write
     uses: datum-cloud/actions/.github/workflows/publish-docker.yaml@v1.9.0
     with:
+      registry-organization: milo-os
       image-name: email-provider-loops
     secrets: inherit
 
